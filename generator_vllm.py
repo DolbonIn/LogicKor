@@ -42,6 +42,13 @@ def process_batch(batch):
     def generate(prompt):
         payload = {
             "model": f"{args.model_name}",
+            "temperature": 0,
+            "top_p" : 1,
+            "top_k" : -1,
+            "early_stopping" : True,
+            "best_of" : 4,
+            "use_beam_search" : True,
+            "skip_special_tokens" : False,
             "messages": [
                 {
                     "role": "system",
