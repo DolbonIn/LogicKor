@@ -75,6 +75,10 @@ def process_batch(batch):
         print("s " + str(s))
 
     def format_multi_turn_question(row):
+        if len(row['questions']) < 2:
+            print(f"Warning: Insufficient questions for multi-turn format in row: {row}")
+            return ""
+        
         return MULTI_TURN_TEMPLATE.format(
             row['questions'][0], single_turn_outputs[row.name], row['questions'][1]
         )
