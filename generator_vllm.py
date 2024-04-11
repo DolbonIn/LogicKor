@@ -14,11 +14,10 @@ parser.add_argument('--model_name', help=' : YOUR_MODEL')
 args = parser.parse_args()
 
 df_config = pd.read_json(args.template, typ='series')
-SINGLE_TURN_TEMPLATE = df_config.iloc[0]  
+SINGLE_TURN_TEMPLATE = df_config.iloc[0]
 MULTI_TURN_TEMPLATE = df_config.iloc[1]
 
 API_ENDPOINT = f"{args.api_endpoint}/v1/chat/completions"
-
 df_questions = pd.read_json('questions.jsonl', lines=True)
 
 def format_single_turn_question(question):
@@ -31,7 +30,7 @@ class QuestionDataset(Dataset):
     def __len__(self):
         return len(self.df)
 
-    def __getitem__(self, idx):  
+    def __getitem__(self, idx):
         return self.df.iloc[idx]
 
 def collate_fn(batch):
@@ -43,42 +42,47 @@ def process_batch(batch):
     def generate(prompt):
         payload = {
             "model": f"{args.model_name}",
-            "max_tokens": 4096,
-            "temperature": 0,
-            "top_p" : 1,
-            "top_k" : -1,
-            "early_stopping" : True,
-            "best_of" : 4,
-            "use_beam_search" : True,
-            "skip_special_tokens" : False,
-            "prompt" : prompt
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are an AI assistant. You will be given a task. You must generate a detailed and long answer in korean."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
         }
-
+        
         response = requests.post(API_ENDPOINT, json=payload)
         result = response.json()
+
         print(prompt)
         print(result)
-        return result['choices'][0]['text'].strip().replace("<|im_end|>","")
+
+        if 'choices' in result:
+            return result['choices'][0]['message']['content'].strip().replace("<|im_end|>","")
+        else:
+            print(f"Error: Unexpected API response format: {result}")
+            return ""
 
     single_turn_outputs = []
     s = 0
-
     for prompt in single_turn_questions.tolist():
         output = generate(prompt)
         single_turn_outputs.append(output)
         s = s + 1
         print("s " + str(s))
 
-    def format_multi_turn_question(row):  
+    def format_multi_turn_question(row):
         return MULTI_TURN_TEMPLATE.format(
-            row['questions'][0], single_turn_outputs[row.name], row['questions'][1]  
+            row['questions'][0], single_turn_outputs[row.name], row['questions'][1]
         )
 
     multi_turn_questions = batch.apply(format_multi_turn_question, axis=1)
 
     multi_turn_outputs = []
     i = 0
-
     for prompt in multi_turn_questions.tolist():
         output = generate(prompt)
         multi_turn_outputs.append(output)
@@ -87,7 +91,7 @@ def process_batch(batch):
 
     return pd.DataFrame({
         'id': batch['id'],
-        'category': batch['category'], 
+        'category': batch['category'],
         'questions': batch['questions'],
         'outputs': list(zip(single_turn_outputs, multi_turn_outputs)),
         'references': batch['references']
@@ -98,7 +102,7 @@ def process_data(df_questions, batch_size, num_workers):
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
-        shuffle=False, 
+        shuffle=False,
         num_workers=num_workers,
         collate_fn=collate_fn,
         prefetch_factor=None,
@@ -111,7 +115,7 @@ def process_data(df_questions, batch_size, num_workers):
     df_output = pd.concat(results, ignore_index=True)
     df_output.to_json(
         f'{args.model_name}.jsonl',
-        orient='records', 
+        orient='records',
         lines=True,
         force_ascii=False
     )
