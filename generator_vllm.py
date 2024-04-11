@@ -22,7 +22,6 @@ API_ENDPOINT = f"{args.api_endpoint}/v1/chat/completions"
 df_questions = pd.read_json('questions.jsonl', lines=True)
 
 def format_single_turn_question(question):
-    print(f"Row name: {row.name}, Single turn outputs length: {len(single_turn_outputs)}")
     return SINGLE_TURN_TEMPLATE.format(question[0])
 
 class QuestionDataset(Dataset):
@@ -107,6 +106,7 @@ def process_batch(batch):
         print(f"Single turn output {s}: {output}")
 
     def format_multi_turn_question(row):
+        print(f"Row name: {row.name}, Single turn outputs length: {len(single_turn_outputs)}")
         if len(row['questions']) < 2:
             print(f"Warning: Insufficient questions for multi-turn format in row: {row}")
             return ""
