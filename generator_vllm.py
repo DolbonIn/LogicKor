@@ -39,8 +39,10 @@ def collate_fn(batch):
 
 def process_batch(batch):
     single_turn_questions = batch['questions'].apply(lambda x: format_single_turn_question(x))
+    print(f"Batch size: {len(batch)}")
+    print(f"Single turn questions: {single_turn_questions}")
 
-    def generate(prompt, max_retries=3, delay=1):
+    def generate(prompt, max_retries=3, delay=5):
         payload = {
             "model": f"{args.model_name}",
             "temperature": 0,
@@ -64,13 +66,13 @@ def process_batch(batch):
 
         retries = 0
         while retries < max_retries:
-            response = requests.post(API_ENDPOINT, json=payload, timeout=600)
+            response = requests.post(API_ENDPOINT, json=payload, timeout=60)
 
             if response.status_code == 200:
                 try:
                     result = response.json()
-                    print(prompt)
-                    print(result)
+                    print(f"Prompt: {prompt}")
+                    print(f"API response: {result}")
 
                     if 'choices' in result:
                         return result['choices'][0]['message']['content'].strip().replace("<|im_end|>", "")
@@ -101,7 +103,7 @@ def process_batch(batch):
         output = generate(prompt)
         single_turn_outputs.append(output)
         s = s + 1
-        print("s " + str(s))
+        print(f"Single turn output {s}: {output}")
 
     def format_multi_turn_question(row):
         if len(row['questions']) < 2:
@@ -112,21 +114,28 @@ def process_batch(batch):
             row['questions'][0], single_turn_outputs[row.name], row['questions'][1]
         )
 
-    multi_turn_questions = batch.apply(format_multi_turn_question, axis=1)
+    multi_turn_batch = batch[batch['questions'].apply(lambda x: len(x) >= 2)]
+    print(f"Multi-turn batch size: {len(multi_turn_batch)}")
+    multi_turn_questions = multi_turn_batch.apply(format_multi_turn_question, axis=1)
+    print(f"Multi-turn questions: {multi_turn_questions}")
 
     multi_turn_outputs = []
     i = 0
     for prompt in multi_turn_questions.tolist():
-        output = generate(prompt)
-        multi_turn_outputs.append(output)
-        i = i + 1
-        print("m " + str(i))
+        if prompt:  # Skip empty prompts
+            output = generate(prompt)
+            multi_turn_outputs.append(output)
+            i = i + 1
+            print(f"Multi-turn output {i}: {output}")
+
+    print(f"Single turn outputs: {single_turn_outputs}")
+    print(f"Multi-turn outputs: {multi_turn_outputs}")
 
     return pd.DataFrame({
         'id': batch['id'],
         'category': batch['category'],
         'questions': batch['questions'],
-        'outputs': list(zip(single_turn_outputs, multi_turn_outputs)),
+        'outputs': [(single_turn_outputs[i], multi_turn_outputs[j] if j < len(multi_turn_outputs) else "") for i, j in enumerate(range(len(batch)))],
         'references': batch['references']
     })
 
@@ -143,7 +152,13 @@ def process_data(df_questions, batch_size, num_workers):
     )
 
     with ThreadPoolExecutor() as executor:
-        results = list(executor.map(process_batch, dataloader))
+        try:
+            results = list(executor.map(process_batch, dataloader))
+        except KeyboardInterrupt:
+            print("Keyboard interrupt received. Shutting down the executor...")
+            executor.shutdown(wait=True)
+            print("Executor shut down. Exiting...")
+            return
 
     df_output = pd.concat(results, ignore_index=True)
     df_output.to_json(
@@ -153,4 +168,5 @@ def process_data(df_questions, batch_size, num_workers):
         force_ascii=False
     )
 
-process_data(df_questions, args.batch_size, args.num_workers)
+if __name__ == '__main__':
+    process_data(df_questions, args.batch_size, args.num_workers)
