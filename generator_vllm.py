@@ -9,13 +9,15 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--template', help=' : Template File Location', default='./templates/template-EEVE.json')
 parser.add_argument('--batch_size', help=' : Batch Size', default=2, type=int)
 parser.add_argument('--num_workers', help=' : Number of DataLoader Workers', default=2, type=int)
+parser.add_argument('--api_endpoint', help=' : YOUR_VLLM_ENDPOINT')
+parser.add_argument('--model_name', help=' : YOUR_MODEL')
 args = parser.parse_args()
 
 df_config = pd.read_json(args.template, typ='series')
 SINGLE_TURN_TEMPLATE = df_config.iloc[0]  
 MULTI_TURN_TEMPLATE = df_config.iloc[1]
 
-API_ENDPOINT = "{YOUR_VLLM_ENDPOINT}/v1/completions"
+API_ENDPOINT = f"{args.api_endpoint}/v1/completions"
 
 df_questions = pd.read_json('questions.jsonl', lines=True)
 
@@ -40,7 +42,7 @@ def process_batch(batch):
 
     def generate(prompt):
         payload = {
-            "model": "{YOUR_MODEL}",
+            "model": f"{args.model_name}",
             "max_tokens": 4096,
             "temperature": 0,
             "top_p" : 1,
@@ -108,7 +110,7 @@ def process_data(df_questions, batch_size, num_workers):
 
     df_output = pd.concat(results, ignore_index=True)
     df_output.to_json(
-        'qwen1.5-32B-Chat.jsonl',
+        f'{args.model_name}.jsonl',
         orient='records', 
         lines=True,
         force_ascii=False
