@@ -17,7 +17,7 @@ df_config = pd.read_json(args.template, typ='series')
 SINGLE_TURN_TEMPLATE = df_config.iloc[0]  
 MULTI_TURN_TEMPLATE = df_config.iloc[1]
 
-API_ENDPOINT = f"{args.api_endpoint}/v1/completions"
+API_ENDPOINT = f"{args.api_endpoint}/v1/chat/completions"
 
 df_questions = pd.read_json('questions.jsonl', lines=True)
 
