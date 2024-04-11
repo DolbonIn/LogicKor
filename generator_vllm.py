@@ -64,7 +64,7 @@ def process_batch(batch):
 
         retries = 0
         while retries < max_retries:
-            response = requests.post(API_ENDPOINT, json=payload)
+            response = requests.post(API_ENDPOINT, json=payload, timeout=180)
 
             if response.status_code == 200:
                 try:
