@@ -2,6 +2,7 @@ import os
 import argparse
 import pandas as pd
 import requests
+import time
 from torch.utils.data import DataLoader, Dataset
 from concurrent.futures import ThreadPoolExecutor
 
@@ -39,16 +40,16 @@ def collate_fn(batch):
 def process_batch(batch):
     single_turn_questions = batch['questions'].apply(lambda x: format_single_turn_question(x))
 
-    def generate(prompt):
+    def generate(prompt, max_retries=3, delay=1):
         payload = {
             "model": f"{args.model_name}",
             "temperature": 0,
-            "top_p" : 1,
-            "top_k" : -1,
-            "early_stopping" : True,
-            "best_of" : 4,
-            "use_beam_search" : True,
-            "skip_special_tokens" : False,
+            "top_p": 1,
+            "top_k": -1,
+            "early_stopping": True,
+            "best_of": 4,
+            "use_beam_search": True,
+            "skip_special_tokens": False,
             "messages": [
                 {
                     "role": "system",
@@ -60,33 +61,38 @@ def process_batch(batch):
                 }
             ]
         }
-        
-        response = requests.post(API_ENDPOINT, json=payload)
-        
-        if response.status_code == 200:
-            try:
-                result = response.json()
-                print(prompt)
-                print(result)
-    
-                if 'choices' in result:
-                    return result['choices'][0]['message']['content'].strip().replace("<|im_end|>","")
-                else:
-                    print(f"Error: Unexpected API response format: {result}")
+
+        retries = 0
+        while retries < max_retries:
+            response = requests.post(API_ENDPOINT, json=payload)
+
+            if response.status_code == 200:
+                try:
+                    result = response.json()
+                    print(prompt)
+                    print(result)
+
+                    if 'choices' in result:
+                        return result['choices'][0]['message']['content'].strip().replace("<|im_end|>", "")
+                    else:
+                        print(f"Error: Unexpected API response format: {result}")
+                        return ""
+                except requests.exceptions.JSONDecodeError as e:
+                    print(f"Error: Failed to decode API response as JSON: {e}")
+                    print(f"Response text: {response.text}")
                     return ""
-            except requests.exceptions.JSONDecodeError as e:
-                print(f"Error: Failed to decode API response as JSON: {e}")
-                print(f"Response text: {response.text}")
-                return ""
-        else:
-            print(f"Error: Unexpected API response status code: {response.status_code}")
-            print(f"Response text: {response.text}")
-            return ""
-    
-            if 'choices' in result:
-                return result['choices'][0]['message']['content'].strip().replace("<|im_end|>","")
+            elif response.status_code == 524:
+                retries += 1
+                if retries == max_retries:
+                    print(f"Error: Max retries reached for API request. Response status code: {response.status_code}")
+                    print(f"Response text: {response.text}")
+                    return ""
+                else:
+                    print(f"Warning: API request timed out. Retrying in {delay} seconds... (Attempt {retries}/{max_retries})")
+                    time.sleep(delay)
             else:
-                print(f"Error: Unexpected API response format: {result}")
+                print(f"Error: Unexpected API response status code: {response.status_code}")
+                print(f"Response text: {response.text}")
                 return ""
 
     single_turn_outputs = []
@@ -101,7 +107,7 @@ def process_batch(batch):
         if len(row['questions']) < 2:
             print(f"Warning: Insufficient questions for multi-turn format in row: {row}")
             return ""
-        
+
         return MULTI_TURN_TEMPLATE.format(
             row['questions'][0], single_turn_outputs[row.name], row['questions'][1]
         )
