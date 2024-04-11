@@ -62,16 +62,32 @@ def process_batch(batch):
         }
         
         response = requests.post(API_ENDPOINT, json=payload)
-        result = response.json()
-
-        print(prompt)
-        print(result)
-
-        if 'choices' in result:
-            return result['choices'][0]['message']['content'].strip().replace("<|im_end|>","")
+        
+        if response.status_code == 200:
+            try:
+                result = response.json()
+                print(prompt)
+                print(result)
+    
+                if 'choices' in result:
+                    return result['choices'][0]['message']['content'].strip().replace("<|im_end|>","")
+                else:
+                    print(f"Error: Unexpected API response format: {result}")
+                    return ""
+            except requests.exceptions.JSONDecodeError as e:
+                print(f"Error: Failed to decode API response as JSON: {e}")
+                print(f"Response text: {response.text}")
+                return ""
         else:
-            print(f"Error: Unexpected API response format: {result}")
+            print(f"Error: Unexpected API response status code: {response.status_code}")
+            print(f"Response text: {response.text}")
             return ""
+    
+            if 'choices' in result:
+                return result['choices'][0]['message']['content'].strip().replace("<|im_end|>","")
+            else:
+                print(f"Error: Unexpected API response format: {result}")
+                return ""
 
     single_turn_outputs = []
     s = 0
