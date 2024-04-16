@@ -8,8 +8,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--template', help=' : Template File Location', default='./templates/template-EEVE.json')
-parser.add_argument('--batch_size', help=' : Batch Size', default=2, type=int)
-parser.add_argument('--num_workers', help=' : Number of DataLoader Workers', default=2, type=int)
+parser.add_argument('--batch_size', help=' : Batch Size', default=1, type=int)
+parser.add_argument('--num_workers', help=' : Number of DataLoader Workers', default=1, type=int)
 parser.add_argument('--api_endpoint', help=' : YOUR_VLLM_ENDPOINT')
 parser.add_argument('--model_name', help=' : YOUR_MODEL')
 args = parser.parse_args()
@@ -66,7 +66,7 @@ def process_batch(batch):
 
         retries = 0
         while retries < max_retries:
-            response = requests.post(API_ENDPOINT, json=payload, timeout=600)
+            response = requests.post(API_ENDPOINT, json=payload, timeout=6000)
 
             if response.status_code == 200:
                 try:
